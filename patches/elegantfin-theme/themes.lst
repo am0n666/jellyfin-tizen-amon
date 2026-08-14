@@ -1,0 +1,5 @@
+# Format: id|name|color|url
+# id = katalog themes/<id>/theme.css oraz wartosc Motywu
+# color = meta theme-color (pasek statusu / splash)
+# Linia z # na poczatku jest ignorowana.
+elegantfin|ElegantFin|#1c1c22|https://cdn.jsdelivr.net/gh/lscambo13/ElegantFin@main/Theme/ElegantFin-jellyfin-theme-build-latest-minified.css

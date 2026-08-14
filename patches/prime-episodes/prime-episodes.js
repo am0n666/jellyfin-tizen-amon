@@ -2,15 +2,11 @@
     'use strict';
 
     // ================================================================
-    //  prime-episodes  (v2)
+    //  prime-episodes  (v3)
     //  Na stronie serialu zastepuje sekcje "Sezony" wyborem sezonu
-    //  (przyciski) i pionowa lista odcinkow w stylu Prime Video:
-    //  miniatura, numer i tytul, czas trwania, data, opis,
-    //  znacznik obejrzenia / pasek postepu.
-    //
-    //  KONFIGURACJA:
-    //  - SECTION_TITLES: naglowki sekcji do podmiany (rozne jezyki UI)
-    //  - TXT: teksty wlasne latki
+    //  (przyciski) i pionowa lista odcinkow w stylu Prime Video.
+    //  Styl i flaga jfpv-pending sa w prime-episodes.css / prime-boot.js
+    //  (wstrzykiwane na poczatku <head>), zeby stary widok nie mignal.
     // ================================================================
     var SECTION_TITLES = ['sezony', 'seasons'];
     var TXT = {
@@ -37,28 +33,24 @@
         '.jfpv-ep-meta{opacity:.7;font-size:.9em;margin:0 0 .35em}' +
         '.jfpv-ep-overview{opacity:.85;font-size:.92em;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}' +
         '.jfpv-host > :not(.jfpv):not(.jfpv-title){display:none !important}' +
-        // Dopoki nie wiadomo, czy podmieniamy widok (trwa pobieranie danych),
-        // oryginalne listy dzieci sa niewidoczne - inaczej przez chwile
-        // widac stary styl sezonow, zanim wejdzie nowy.
-        '.jfpv-pending #itemDetailPage #childrenCollapsible,' +
-        '.jfpv-pending #itemDetailPage #listChildrenCollapsible{visibility:hidden !important}';
+        'html.jfpv-pending #itemDetailPage #childrenCollapsible,' +
+        'html.jfpv-pending #itemDetailPage #listChildrenCollapsible{visibility:hidden !important}';
 
     function injectCss() {
-        if (document.getElementById('jfpv-style')) return;
-        var st = document.createElement('style');
-        st.id = 'jfpv-style';
-        st.textContent = CSS;
-        (document.head || document.documentElement).appendChild(st);
+        var st = document.getElementById('jfpv-style');
+        if (!st) {
+            st = document.createElement('style');
+            st.id = 'jfpv-style';
+            (document.head || document.documentElement).appendChild(st);
+        }
+        if (st.textContent !== CSS) st.textContent = CSS;
     }
 
     function norm(s) { return (s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
 
-    // --- przykrywanie starego widoku do czasu podmiany -----------------
-    // Bezpiecznik: gdyby cokolwiek poszlo nie tak (brak API, blad zapytania,
-    // inny typ pozycji), oryginalna zawartosc zawsze zostanie odsloniona.
     var pendingTimer = null;
     function markPending() {
-        if (!isDetailsHash()) return;
+        if (!isDetailsHash()) { clearPending(); return; }
         document.documentElement.classList.add('jfpv-pending');
         clearTimeout(pendingTimer);
         pendingTimer = setTimeout(clearPending, 4000);
@@ -67,7 +59,6 @@
         clearTimeout(pendingTimer);
         document.documentElement.classList.remove('jfpv-pending');
     }
-    // ------------------------------------------------------------------
 
     function apiReady() { return !!(window.ApiClient && window.ApiClient.getCurrentUserId); }
     function hashPrefix() { return location.hash.indexOf('#!/') === 0 ? '#!' : '#'; }
@@ -92,7 +83,7 @@
             var sec = titles[i].closest('.verticalSection');
             if (!sec || !visible(sec)) continue;
             if (SECTION_TITLES.indexOf(norm(titles[i].textContent)) >= 0) return sec;
-            if (sec.hasAttribute('data-jfpv')) return sec; // wczesniej podmieniona, do ponownego montazu
+            if (sec.hasAttribute('data-jfpv')) return sec;
         }
         return null;
     }
@@ -102,22 +93,22 @@
 
     function check() {
         injectCss();
-        if (!apiReady() || !isDetailsHash()) { clearPending(); return; }
+        if (!isDetailsHash()) { clearPending(); return; }
+        if (!apiReady()) return;
         var id = hashParams().id;
         if (!id) { clearPending(); return; }
         var mounted = document.querySelector('.jfpv[data-series="' + id + '"]');
         if (visible(mounted)) { clearPending(); return; }
         if (busy) return;
-        var sec = findSeasonsSection();
-        if (!sec) return;
         busy = true;
         var uid = ApiClient.getCurrentUserId();
         var p = itemCache[id] || (itemCache[id] = ApiClient.getItem(uid, id));
         p.then(function (item) {
             busy = false;
-            // nie serial (film, sezon, album) -> odsloniamy oryginalny widok
             if (!item || item.Type !== 'Series') { clearPending(); return; }
             if (hashParams().id !== id) { clearPending(); return; }
+            var sec = findSeasonsSection();
+            if (!sec) return;
             mount(sec, item, hashParams().serverId || item.ServerId, uid);
         }, function () { busy = false; clearPending(); });
     }
@@ -142,7 +133,6 @@
         wrap.appendChild(list);
         sec.appendChild(title);
         sec.appendChild(wrap);
-        // nasza sekcja jest juz w DOM - mozna odsłonic strone
         clearPending();
 
         ApiClient.getSeasons(series.Id, { userId: uid }).then(function (res) {
@@ -247,23 +237,25 @@
         return row;
     }
 
-    var scheduled = false;
+    var raf = 0;
+    var rafFn = window.requestAnimationFrame || function (cb) { return setTimeout(cb, 0); };
     function schedule() {
-        if (scheduled) return;
-        scheduled = true;
-        setTimeout(function () {
-            scheduled = false;
+        if (raf) return;
+        raf = rafFn(function () {
+            raf = 0;
             try { check(); } catch (e) { clearPending(); }
-        }, 80);
+        });
     }
 
     new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
     window.addEventListener('hashchange', function () { markPending(); schedule(); });
+    document.addEventListener('viewshow', function (e) {
+        var t = e.target;
+        if (t && t.id === 'itemDetailPage') markPending();
+        schedule();
+    }, true);
     document.addEventListener('DOMContentLoaded', schedule);
 
-    // CSS wstrzykujemy NATYCHMIAST przy wczytaniu skryptu (jest w <head>,
-    // wiec przed zbudowaniem strony) - dzieki temu stary widok sezonow
-    // nie miga przez chwile przed podmiana na nowy.
     injectCss();
     markPending();
     schedule();

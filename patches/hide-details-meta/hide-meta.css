@@ -1,0 +1,19 @@
+/* hide-details-meta v8
+   Ladowany z <head> index.html PRZED bundlem aplikacji,
+   zeby ukrywane elementy nie zdazyly sie namalowac. */
+.genresGroup,
+.itemGenres,
+.directorsGroup,
+.writersGroup,
+.studiosGroup,
+.itemTags,
+.nextUpSection {
+    display: none !important;
+}
+
+/* jellyfin-web master: wiersze metadanych sa React (.detailsGroupItem)
+   bez starych klas *Group. Chowamy je, dopoki JS nie oznaczy
+   data-jf-hm-keep (wiersze do zostawienia, np. obsada). */
+.itemDetailsGroup .detailsGroupItem:not([data-jf-hm-keep="1"]) {
+    display: none !important;
+}

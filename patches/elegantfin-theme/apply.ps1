@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 $cfgPath = Join-Path $Web 'config.json'
 $lstPath = Join-Path $Pdir 'themes.lst'
+$overridePath = Join-Path $Pdir 'tv-override.css'
 if (-not (Test-Path -LiteralPath $cfgPath)) {
     Write-Host 'Brak config.json w katalogu interfejsu'
     exit 1
@@ -14,10 +15,20 @@ if (-not (Test-Path -LiteralPath $lstPath)) {
     Write-Host 'Brak themes.lst w katalogu latki'
     exit 1
 }
+if (-not (Test-Path -LiteralPath $overridePath)) {
+    Write-Host 'Brak tv-override.css w katalogu latki'
+    exit 1
+}
 
 $cfg = Get-Content -Raw -LiteralPath $cfgPath | ConvertFrom-Json
 if (-not $cfg.themes) {
     Write-Host 'config.json nie zawiera tablicy themes'
+    exit 1
+}
+
+$override = Get-Content -Raw -LiteralPath $overridePath
+if ($override -notmatch 'font-size') {
+    Write-Host 'tv-override.css nie zawiera font-size'
     exit 1
 }
 
@@ -48,7 +59,7 @@ Get-Content -LiteralPath $lstPath | ForEach-Object {
 
     $themeDir = Join-Path $Web (Join-Path 'themes' $id)
     New-Item -ItemType Directory -Force -Path $themeDir | Out-Null
-    $css = '@import url("' + $url + '");' + [Environment]::NewLine
+    $css = '@import url("' + $url + '");' + [Environment]::NewLine + $override
     [System.IO.File]::WriteAllText((Join-Path $themeDir 'theme.css'), $css, $utf8)
     $ids.Add($id) | Out-Null
 
@@ -85,6 +96,10 @@ foreach ($id in $ids) {
     $cssBody = Get-Content -Raw -LiteralPath $cssPath
     if ($cssBody -notmatch '@import url\(') {
         Write-Host "theme.css dla $id nie zawiera @import"
+        exit 1
+    }
+    if ($cssBody -notmatch 'font-size') {
+        Write-Host "theme.css dla $id nie zawiera tv-override"
         exit 1
     }
 }

@@ -1,0 +1,8 @@
+/* Tizen / layout-tv: jellyfin-web ustawia font-size: 125%
+   (wytyczne WebOS/Tizen: minimum 20px = 16px * 1.25).
+   ElegantFin na tym wyglada jak UI w za niskiej rozdzielczosci.
+   100% = baza pulpitu (16px rem). Za male: 110%. Za duze: 90%. */
+html.layout-tv,
+.layout-tv {
+    font-size: 100% !important;
+}
